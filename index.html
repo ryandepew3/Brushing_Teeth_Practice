@@ -76,6 +76,8 @@
   }
   .slot .num{font-weight:800; color:#9db4d4; font-size:clamp(1.4rem,3vw,2.1rem);}
   .slot.filled{border-style:solid; border-color:var(--green); background:var(--panel);}
+  .slot.next{border-style:solid; border-color:var(--green); background:#e3f6ec; animation:slotpulse 1.4s ease-in-out infinite;}
+  .slot.next .num{color:var(--green);}
   .slot img{width:100%; height:100%; object-fit:cover;}
   .slot .tick{position:absolute; right:3px; bottom:3px; background:var(--green); color:#fff;
     border-radius:999px; width:1.5rem; height:1.5rem; display:flex; align-items:center; justify-content:center; font-size:1rem;}
@@ -96,7 +98,7 @@
   .card .pic img{width:100%; height:100%; object-fit:contain;}
   .card .cap{padding:.5rem .4rem; text-align:center; font-weight:700; color:var(--ink);
     font-size:clamp(.9rem,1.9vw,1.15rem); line-height:1.15;}
-  .card.hint{border-color:var(--orange); animation:pulse 1s ease-in-out infinite;}
+  .card.hint{animation:hintblink .85s ease-in-out infinite;}
   .card.wrong{animation:shake .4s;}
   .card.gone{opacity:0; pointer-events:none; transform:scale(.6);}
 
@@ -132,6 +134,8 @@
   @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
     30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+  @keyframes slotpulse{0%,100%{box-shadow:0 0 0 0 rgba(15,155,82,0)}50%{box-shadow:0 0 0 7px rgba(15,155,82,.20)}}
+  @keyframes hintblink{0%,100%{outline:5px solid rgba(240,85,0,0); outline-offset:2px}50%{outline:5px solid rgba(240,85,0,.95); outline-offset:2px}}
 
   .confetti{position:fixed; top:-20px; width:12px; height:12px; z-index:30; pointer-events:none; border-radius:2px;}
   @keyframes fall{to{transform:translateY(110vh) rotate(540deg); opacity:.9}}
@@ -232,6 +236,7 @@ function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on"));
   $("#"+id).classList.add("on");
   state.screen=id;
+  clearTimeout(seq.hintTimer);
   $("#homeBtn").style.display = id==="home" ? "none" : "flex";
   $("#stars").textContent=""; $("#progress").textContent="";
   $("#barTitle").textContent = id==="sequence" ? "Put It In Order" : id==="match" ? "Match the Steps" : "Brushing Teeth";
@@ -249,6 +254,18 @@ function confetti(){
 
 /* ---------- SEQUENCE ---------- */
 let seq={order:[],placed:0,wrong:0};
+function hintCorrect(){
+  if(state.screen!=="sequence" || seq.placed>=seq.order.length) return;
+  const need=seq.order[seq.placed];
+  const cards=[...document.querySelectorAll("#tray .card")];
+  const idx=seq.tray.indexOf(need);
+  if(cards[idx]) cards[idx].classList.add("hint");
+}
+function scheduleHint(){
+  clearTimeout(seq.hintTimer);
+  if(seq.placed>=seq.order.length) return;
+  seq.hintTimer=setTimeout(hintCorrect,10000);
+}
 function startSequence(){
   show("sequence");
   const steps=activeSteps();
@@ -262,6 +279,7 @@ function renderSeq(){
     if(i<seq.placed){ slot.classList.add("filled");
       slot.innerHTML='<img src="'+st.img+'"><div class="tick">&#10003;</div>';
     } else {
+      if(i===seq.placed) slot.classList.add("next");
       slot.innerHTML='<span class="num">'+(i+1)+'</span>';
     }
     rail.appendChild(slot);
@@ -276,22 +294,19 @@ function renderSeq(){
   });
   $("#progress").textContent = seq.placed+" / "+seq.order.length;
   $("#seqInstr").textContent = seq.placed===0 ? "Tap the pictures in order. What comes first?" : "Nice! What comes next?";
+  scheduleHint();
 }
 function tapSeq(st,card){
   const need=seq.order[seq.placed];
   if(st===need){
+    clearTimeout(seq.hintTimer);
     seq.placed++; seq.wrong=0; good();
     card.classList.add("gone");
     setTimeout(()=>{ renderSeq(); if(seq.placed===seq.order.length) finish("sequence"); }, 180);
   } else {
     seq.wrong++; nope();
     card.classList.remove("wrong"); void card.offsetWidth; card.classList.add("wrong");
-    if(seq.wrong>=2){ // gentle hint
-      [...document.querySelectorAll(".card")].forEach(el=>el.classList.remove("hint"));
-      const cards=[...document.querySelectorAll("#tray .card")];
-      const idx=seq.tray.indexOf(need);
-      if(cards[idx]) cards[idx].classList.add("hint");
-    }
+    if(seq.wrong>=2) hintCorrect();
   }
 }
 
